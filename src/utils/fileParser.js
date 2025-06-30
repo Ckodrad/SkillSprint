@@ -4,6 +4,8 @@ import * as pdfjsLib from 'pdfjs-dist'
 // Set up PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
 
+const API_URL = 'http://localhost:8000'
+
 /**
  * Parse PDF file and extract structured content
  * @param {File} file - PDF file to parse
@@ -134,21 +136,29 @@ export const parsePowerPoint = async (file) => {
  * @returns {Promise<Object>} Structured content
  */
 export const parseFile = async (file) => {
-  const fileType = file.type.toLowerCase()
-  const fileName = file.name.toLowerCase()
-  
-  if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
-    return await parsePDF(file)
-  } else if (
-    fileType.includes('powerpoint') || 
-    fileType.includes('presentation') ||
-    fileName.endsWith('.pptx') ||
-    fileName.endsWith('.ppt')
-  ) {
-    return await parsePowerPoint(file)
-  } else {
-    throw new Error('Unsupported file type. Please upload a PDF or PowerPoint file.')
-  }
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await fetch(`${API_URL}/parse`, {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) throw new Error('Failed to parse file')
+  return await res.json()
+}
+
+/**
+ * Generate quiz based on parsed content
+ * @param {Object} parsedContent - Structured content to generate quiz from
+ * @returns {Promise<Object>} Generated quiz
+ */
+export const generateQuiz = async (parsedContent) => {
+  const res = await fetch(`${API_URL}/generate-quiz`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(parsedContent),
+  })
+  if (!res.ok) throw new Error('Failed to generate quiz')
+  return await res.json()
 }
 
 /**

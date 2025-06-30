@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, FileText, ChevronLeft, ChevronRight, Timer, Star, StarOff, Play, Pause } from 'lucide-react'
+import { ArrowLeft, FileText, ChevronLeft, ChevronRight, Timer, Star, StarOff, Play, Pause, Loader2 } from 'lucide-react'
 import FlashCard from '../components/FlashCard'
 import Quiz from '../components/Quiz'
 
@@ -40,6 +40,9 @@ const Lesson = () => {
   const [focusMode, setFocusMode] = useState(false)
   const [focusTime, setFocusTime] = useState(FOCUS_TIME)
   const [focusInterval, setFocusInterval] = useState(null)
+  const [generatedFlashcards, setGeneratedFlashcards] = useState([])
+  const [generatedQuiz, setGeneratedQuiz] = useState([])
+  const [generatingContent, setGeneratingContent] = useState(false)
 
   useEffect(() => {
     // Load lesson data from localStorage (demo purposes)
@@ -60,6 +63,74 @@ const Lesson = () => {
       setFocusInterval(null)
     }
   }, [focusMode, focusTime])
+
+  const generateFlashcards = async () => {
+    if (!lessonData || generatedFlashcards.length > 0) return
+    
+    setGeneratingContent(true)
+    try {
+      const response = await fetch('http://127.0.0.1:8000/generate-flashcards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(lessonData),
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setGeneratedFlashcards(data.flashcards || [])
+      } else {
+        console.error('Failed to generate flashcards')
+      }
+    } catch (error) {
+      console.error('Error generating flashcards:', error)
+    } finally {
+      setGeneratingContent(false)
+    }
+  }
+
+  const generateQuiz = async () => {
+    if (!lessonData || generatedQuiz.length > 0) return
+    
+    setGeneratingContent(true)
+    try {
+      const response = await fetch('http://127.0.0.1:8000/generate-quiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(lessonData),
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setGeneratedQuiz(data.questions || [])
+      } else {
+        console.error('Failed to generate quiz')
+      }
+    } catch (error) {
+      console.error('Error generating quiz:', error)
+    } finally {
+      setGeneratingContent(false)
+    }
+  }
+
+  const handleShowFlashCards = () => {
+    setShowFlashCards(true)
+    setShowQuiz(false)
+    if (generatedFlashcards.length === 0) {
+      generateFlashcards()
+    }
+  }
+
+  const handleShowQuiz = () => {
+    setShowQuiz(true)
+    setShowFlashCards(false)
+    if (generatedQuiz.length === 0) {
+      generateQuiz()
+    }
+  }
 
   const nextSlide = () => {
     if (currentSlide < lessonData.slides.length - 1) {
@@ -129,19 +200,29 @@ const Lesson = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            className="btn-primary flex items-center space-x-2"
-            onClick={() => setShowFlashCards(f => !f)}
+            className={`btn-primary flex items-center space-x-2 ${showFlashCards ? 'ring-2 ring-primary-400' : ''}`}
+            onClick={handleShowFlashCards}
             title="Study with Flash-Cards"
+            disabled={generatingContent}
           >
-            <Star className="w-4 h-4" />
+            {generatingContent && showFlashCards ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Star className="w-4 h-4" />
+            )}
             <span>Flash-Cards</span>
           </button>
           <button
-            className="btn-primary flex items-center space-x-2"
-            onClick={() => setShowQuiz(f => !f)}
+            className={`btn-primary flex items-center space-x-2 ${showQuiz ? 'ring-2 ring-primary-400' : ''}`}
+            onClick={handleShowQuiz}
             title="Take Quiz"
+            disabled={generatingContent}
           >
-            <FileText className="w-4 h-4" />
+            {generatingContent && showQuiz ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4" />
+            )}
             <span>Quiz</span>
           </button>
           <button
@@ -190,24 +271,52 @@ const Lesson = () => {
         <div className="lg:col-span-2">
           {showFlashCards ? (
             <div className="space-y-6">
-              {lessonData.slides.map((slide, idx) => (
-                <FlashCard
-                  key={idx}
-                  front={slide.headings[0] || `Slide ${slide.slideNumber}`}
-                  back={slide.paragraphs[0] || slide.rawText}
-                  onFavorite={() => handleFavorite(idx)}
-                  isFavorite={favorites.includes(idx)}
-                  cardIndex={idx}
-                  totalCards={lessonData.slides.length}
-                />
-              ))}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button className="btn-secondary" onClick={() => setShowFlashCards(false)} title="Back to Lesson">Back to Lesson</button>
-                <button className="btn-primary" onClick={() => setFavorites([])} title="Clear Favorites">Clear Favorites</button>
-              </div>
+              {generatingContent ? (
+                <div className="card text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary-600" />
+                  <p>Generating concise flashcards...</p>
+                </div>
+              ) : generatedFlashcards.length > 0 ? (
+                <>
+                  {generatedFlashcards.map((flashcard, idx) => (
+                    <FlashCard
+                      key={idx}
+                      front={flashcard.front}
+                      back={flashcard.back}
+                      onFavorite={() => handleFavorite(idx)}
+                      isFavorite={favorites.includes(idx)}
+                      cardIndex={idx}
+                      totalCards={generatedFlashcards.length}
+                    />
+                  ))}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button className="btn-secondary" onClick={() => setShowFlashCards(false)} title="Back to Lesson">Back to Lesson</button>
+                    <button className="btn-primary" onClick={() => setFavorites([])} title="Clear Favorites">Clear Favorites</button>
+                  </div>
+                </>
+              ) : (
+                <div className="card text-center">
+                  <p>No flashcards generated. Please try again.</p>
+                  <button className="btn-primary mt-4" onClick={generateFlashcards}>Generate Flashcards</button>
+                </div>
+              )}
             </div>
           ) : showQuiz ? (
-            <Quiz questions={MOCK_QUIZ} onComplete={() => {}} />
+            <div>
+              {generatingContent ? (
+                <div className="card text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary-600" />
+                  <p>Generating quiz questions...</p>
+                </div>
+              ) : generatedQuiz.length > 0 ? (
+                <Quiz questions={generatedQuiz} onComplete={() => {}} />
+              ) : (
+                <div className="card text-center">
+                  <p>No quiz questions generated. Please try again.</p>
+                  <button className="btn-primary mt-4" onClick={generateQuiz}>Generate Quiz</button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="card">
               <div className="flex items-center justify-between mb-6">
@@ -330,13 +439,13 @@ const Lesson = () => {
             <h3 className="text-lg font-semibold mb-4 text-primary-900">Next Steps</h3>
             <div className="space-y-3">
               <p className="text-sm text-primary-800">
-                This is the Round 2 prototype with flash-cards, quiz, focus mode, favorites, and improved UI. Future iterations will add more advanced features.
+                This is the Round 2 prototype with improved flash-cards, quiz generation, focus mode, favorites, and enhanced UI.
               </p>
               <ul className="text-sm text-primary-800 space-y-1">
-                <li>• More advanced quiz generation</li>
+                <li>• AI-powered question generation</li>
+                <li>• Concise flashcard content</li>
                 <li>• Spaced repetition scheduling</li>
                 <li>• Study streaks and reminders</li>
-                <li>• Export and review features</li>
               </ul>
             </div>
           </div>

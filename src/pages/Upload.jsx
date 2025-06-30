@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload as UploadIcon, FileText, File, AlertCircle, CheckCircle, Loader } from 'lucide-react'
-import { parseFile, validateFile } from '../utils/fileParser'
+import { parseFile, validateFile, generateQuiz } from '../utils/fileParser'
 
 const Upload = () => {
   const [file, setFile] = useState(null)
@@ -53,11 +53,11 @@ const Upload = () => {
     try {
       const content = await parseFile(file)
       setParsedContent(content)
-      
+      // Fetch quiz questions from backend
+      const quiz = await generateQuiz(content)
       // Store in localStorage for demo purposes
       const lessonId = Date.now().toString()
-      localStorage.setItem(`lesson_${lessonId}`, JSON.stringify(content))
-      
+      localStorage.setItem(`lesson_${lessonId}`, JSON.stringify({ ...content, quiz: quiz.questions }))
       // Navigate to lesson page
       navigate(`/lesson/${lessonId}`)
     } catch (err) {
